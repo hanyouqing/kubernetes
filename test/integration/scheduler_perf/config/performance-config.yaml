@@ -688,49 +688,85 @@
 #      initPods: 20000
 #      measurePods: 5000
 
-- name: Unschedulable
+# Measure throughput of regular schedulable pods that are interleaved by high priority preemption pods scheduled at 20/s rate.
+# Implementation of asynchrounous preemption feature https://github.com/kubernetes/kubernetes/issues/126858 is supposed to increase the trhoughput of the measured pods as all heavy operations (apiserver communication) will be performed asyncronously, wihtout blocking the scheduler loop.
+# How is it achieved:
+# 1. There are X initial nodes with 4 low priority pods each, consuming 3.6 CPU out of the total 4 available.
+# 2. High priority preemption which need to preempt 3 of 4 low priority pods to fit (require 3 CPU).
+# 3. Measured pods are always schedulable, as they require 0.1 CPU only.
+- name: PreemptionAsync
   workloadTemplate:
   - opcode: createNodes
     countParam: $initNodes
   - opcode: createPods
     countParam: $initPods
-    podTemplatePath: config/templates/pod-large-cpu.yaml
-    skipWaitToCompletion: true
+    podTemplatePath: config/templates/pod-low-priority.yaml
+  - opcode: churn
+    mode: create
+    templatePaths:
+    - config/templates/pod-high-priority-large-cpu.yaml
+    intervalMilliseconds: 50
   - opcode: createPods
     countParam: $measurePods
     podTemplatePath: config/templates/pod-default.yaml
     collectMetrics: true
   workloads:
-  - name: 5Nodes/2InitPods
+  - name: 5Nodes
     labels: [integration-test, performance, short]
     params:
       initNodes: 5
-      initPods: 2
-      measurePods: 10
-  - name: 500Nodes/200InitPods
+      initPods: 20
+      measurePods: 5
+  - name: 500Nodes
     labels: [performance, short]
     params:
       initNodes: 500
-      initPods: 200
+      initPods: 2000
+      measurePods: 500
+  - name: 5000Nodes
+    labels: [performance]
+    threshold: 200
+    params:
+      initNodes: 5000
+      initPods: 20000
+      measurePods: 5000
+
+# Measure throughput of regular schedulable pods that are interleaved by unschedulable pods injected at 100/s rate.
+- name: Unschedulable
+  workloadTemplate:
+  - opcode: createNodes
+    countParam: $initNodes
+  - opcode: churn
+    mode: create
+    templatePaths:
+    - config/templates/pod-large-cpu.yaml
+    intervalMilliseconds: 10
+  - opcode: createPods
+    countParam: $measurePods
+    podTemplatePath: config/templates/pod-default.yaml
+    collectMetrics: true
+  workloads:
+  - name: 5Nodes/10Pods
+    labels: [integration-test, performance, short]
+    params:
+      initNodes: 5
+      measurePods: 10
+  - name: 500Nodes/1kPods
+    labels: [performance, short]
+    params:
+      initNodes: 500
       measurePods: 1000
-  - name: 5000Nodes/200InitPods
+  - name: 5kNodes/1kPods
     labels: [performance, short]
     params:
       initNodes: 5000
-      initPods: 200
-      measurePods: 5000
-  - name: 5000Nodes/200InitPods/10000Pods
+      measurePods: 1000
+  - name: 5kNodes/10kPods
     labels: [performance]
-    threshold: 300
+    threshold: 400
     params:
       initNodes: 5000
-      initPods: 200
       measurePods: 10000
-  - name: 5000Nodes/2000InitPods
-    params:
-      initNodes: 5000
-      initPods: 2000
-      measurePods: 5000
 
 - name: SchedulingWithMixedChurn
   workloadTemplate:
